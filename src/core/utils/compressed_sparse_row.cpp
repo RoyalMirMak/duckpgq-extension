@@ -103,7 +103,8 @@ unique_ptr<FunctionData> CSRFunctionData::CSRBind(BindScalarFunctionInput &input
 	return make_uniq<CSRFunctionData>(context, id.GetValue<int32_t>(), LogicalType::BOOLEAN);
 }
 
-static string CSRCountTableSQL(const PropertyGraphTable &table, const string &table_alias, const string &primary_key) {
+static string CSRCountTableSQL(const PropertyGraphTable &table, const string &table_alias,
+                               const Identifier &primary_key) {
 	std::ostringstream query;
 	query << "SELECT count(" << DuckPGQSQL::Column(primary_key, table_alias) << ") FROM "
 	      << DuckPGQSQL::TableRef(table, table_alias);
@@ -113,12 +114,12 @@ static string CSRCountTableSQL(const PropertyGraphTable &table, const string &ta
 static string CSRCountEdgeTableSQL(const PropertyGraphTable &edge_table) {
 	std::ostringstream query;
 	query << "SELECT count() FROM " << DuckPGQSQL::TableRef(edge_table) << " INNER JOIN "
-	      << DuckPGQSQL::TableRef(*edge_table.source_pg_table, "src") << " ON "
+	      << DuckPGQSQL::TableRef(*edge_table.source_pg_table, string("src")) << " ON "
 	      << DuckPGQSQL::Column(edge_table.source_fk[0], edge_table.table_name) << " = "
-	      << DuckPGQSQL::Column(edge_table.source_pk[0], "src") << " INNER JOIN "
-	      << DuckPGQSQL::TableRef(*edge_table.destination_pg_table, "dst") << " ON "
+	      << DuckPGQSQL::Column(edge_table.source_pk[0], string("src")) << " INNER JOIN "
+	      << DuckPGQSQL::TableRef(*edge_table.destination_pg_table, string("dst")) << " ON "
 	      << DuckPGQSQL::Column(edge_table.destination_fk[0], edge_table.table_name) << " = "
-	      << DuckPGQSQL::Column(edge_table.destination_pk[0], "dst");
+	      << DuckPGQSQL::Column(edge_table.destination_pk[0], string("dst"));
 	return query.str();
 }
 
@@ -133,7 +134,7 @@ static string CSRDirectedCSRVertexSQL(const PropertyGraphTable &edge_table, cons
 	std::ostringstream query;
 	query << "SELECT sum(create_csr_vertex(0, ("
 	      << CSRCountTableSQL(*edge_table.source_pg_table, prev_binding, edge_table.source_pk[0])
-	      << "), sub.dense_id, sub.cnt)) FROM (SELECT " << DuckPGQSQL::Column("rowid", prev_binding)
+	      << "), sub.dense_id, sub.cnt)) FROM (SELECT " << DuckPGQSQL::Column(string("rowid"), prev_binding)
 	      << " AS dense_id, count(" << DuckPGQSQL::Column(edge_table.source_fk[0], edge_table.table_name)
 	      << ") AS cnt FROM " << DuckPGQSQL::TableRef(*edge_table.source_pg_table, prev_binding) << " LEFT JOIN "
 	      << DuckPGQSQL::TableRef(edge_table) << " ON "
@@ -144,7 +145,7 @@ static string CSRDirectedCSRVertexSQL(const PropertyGraphTable &edge_table, cons
 
 static string CSRUniqueEdgesSQL(const PropertyGraphTable &edge_table, bool reverse) {
 	std::ostringstream query;
-	query << "SELECT " << DuckPGQSQL::Column("rowid", edge_table.source_reference) << " AS dense_id, ";
+	query << "SELECT " << DuckPGQSQL::Column(string("rowid"), edge_table.source_reference) << " AS dense_id, ";
 	if (!reverse) {
 		query << DuckPGQSQL::Column(edge_table.source_fk[0], edge_table.table_name) << " AS outgoing_edges, "
 		      << DuckPGQSQL::Column(edge_table.destination_fk[0], edge_table.table_name) << " AS incoming_edges FROM "
@@ -173,7 +174,7 @@ static string CSRUndirectedCSRVertexSQL(const PropertyGraphTable &edge_table, co
 
 // Function to create a subquery expression for counting table entries
 unique_ptr<SubqueryExpression> GetCountTable(const shared_ptr<PropertyGraphTable> &table, const string &table_alias,
-                                             const string &primary_key) {
+                                             const Identifier &primary_key) {
 	return DuckPGQSQL::ParseScalarSubquery(CSRCountTableSQL(*table, table_alias, primary_key));
 }
 
@@ -191,16 +192,16 @@ unique_ptr<SubqueryExpression> CreateUndirectedCSRVertexSubquery(const shared_pt
 // Function to create the CTE for the edges
 unique_ptr<CommonTableExpressionInfo> MakeEdgesCTE(const shared_ptr<PropertyGraphTable> &edge_table) {
 	std::ostringstream query;
-	query << "SELECT " << DuckPGQSQL::Column("rowid", "src_table") << " AS src, "
-	      << DuckPGQSQL::Column("rowid", "dst_table") << " AS dst, "
-	      << DuckPGQSQL::Column("rowid", edge_table->table_name) << " AS edges FROM "
+	query << "SELECT " << DuckPGQSQL::Column(string("rowid"), string("src_table")) << " AS src, "
+	      << DuckPGQSQL::Column(string("rowid"), string("dst_table")) << " AS dst, "
+	      << DuckPGQSQL::Column(string("rowid"), edge_table->table_name) << " AS edges FROM "
 	      << DuckPGQSQL::TableRef(*edge_table) << " INNER JOIN "
-	      << DuckPGQSQL::TableRef(*edge_table->source_pg_table, "src_table") << " ON "
+	      << DuckPGQSQL::TableRef(*edge_table->source_pg_table, string("src_table")) << " ON "
 	      << DuckPGQSQL::Column(edge_table->source_fk[0], edge_table->table_name) << " = "
-	      << DuckPGQSQL::Column(edge_table->source_pk[0], "src_table") << " INNER JOIN "
-	      << DuckPGQSQL::TableRef(*edge_table->destination_pg_table, "dst_table") << " ON "
+	      << DuckPGQSQL::Column(edge_table->source_pk[0], string("src_table")) << " INNER JOIN "
+	      << DuckPGQSQL::TableRef(*edge_table->destination_pg_table, string("dst_table")) << " ON "
 	      << DuckPGQSQL::Column(edge_table->destination_fk[0], edge_table->table_name) << " = "
-	      << DuckPGQSQL::Column(edge_table->destination_pk[0], "dst_table");
+	      << DuckPGQSQL::Column(edge_table->destination_pk[0], string("dst_table"));
 	return DuckPGQSQL::ParseCTE(query.str());
 }
 
@@ -213,9 +214,10 @@ unique_ptr<CommonTableExpressionInfo> CreateUndirectedCSRCTE(const shared_ptr<Pr
 
 	std::ostringstream query;
 	query << "SELECT create_csr_edge(0, ("
-	      << CSRCountTableSQL(*edge_table->source_pg_table, edge_table->source_reference, edge_table->source_pk[0])
-	      << "), CAST((" << CSRUndirectedCSRVertexSQL(*edge_table, edge_table->source_reference) << ") AS BIGINT), ("
-	      << CSRCountUndirectedEdgeTableSQL() << "), src, dst, edge) AS temp FROM ("
+	      << CSRCountTableSQL(*edge_table->source_pg_table, edge_table->source_reference.GetIdentifierName(),
+	                          edge_table->source_pk[0])
+	      << "), CAST((" << CSRUndirectedCSRVertexSQL(*edge_table, edge_table->source_reference.GetIdentifierName())
+	      << ") AS BIGINT), (" << CSRCountUndirectedEdgeTableSQL() << "), src, dst, edge) AS temp FROM ("
 	      << "SELECT src, dst, any_value(edges) AS edge FROM ("
 	      << "SELECT src, dst, edges FROM edges_cte UNION ALL SELECT dst, src, edges FROM edges_cte"
 	      << ") GROUP BY src, dst)";
@@ -238,9 +240,10 @@ unique_ptr<CommonTableExpressionInfo> CreateDirectedCSRCTE(const shared_ptr<Prop
 	query << "SELECT create_csr_edge(0, ("
 	      << CSRCountTableSQL(*edge_table->source_pg_table, prev_binding, edge_table->source_pk[0]) << "), CAST(("
 	      << CSRDirectedCSRVertexSQL(*edge_table, prev_binding) << ") AS BIGINT), ("
-	      << CSRCountEdgeTableSQL(*edge_table) << "), " << DuckPGQSQL::Column("rowid", prev_binding) << ", "
-	      << DuckPGQSQL::Column("rowid", next_binding) << ", " << DuckPGQSQL::Column("rowid", edge_binding)
-	      << ") AS temp FROM " << DuckPGQSQL::TableRef(*edge_table, edge_binding) << " INNER JOIN "
+	      << CSRCountEdgeTableSQL(*edge_table) << "), " << DuckPGQSQL::Column(string("rowid"), prev_binding) << ", "
+	      << DuckPGQSQL::Column(string("rowid"), next_binding) << ", "
+	      << DuckPGQSQL::Column(string("rowid"), edge_binding) << ") AS temp FROM "
+	      << DuckPGQSQL::TableRef(*edge_table, edge_binding) << " INNER JOIN "
 	      << DuckPGQSQL::TableRef(*edge_table->source_pg_table, prev_binding) << " ON "
 	      << DuckPGQSQL::Column(edge_table->source_fk[0], edge_binding) << " = "
 	      << DuckPGQSQL::Column(edge_table->source_pk[0], prev_binding) << " INNER JOIN "

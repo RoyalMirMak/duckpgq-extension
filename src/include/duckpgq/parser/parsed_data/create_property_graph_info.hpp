@@ -170,7 +170,7 @@ public:
 			if (pg_table->is_vertex_table != is_vertex_table) {
 				continue;
 			}
-			if (pg_table->table_name == label) {
+			if (pg_table->table_name.GetIdentifierName() == label) {
 				throw Exception(
 				    ExceptionType::INVALID,
 				    "Table '" + label +
@@ -179,10 +179,10 @@ public:
 			}
 
 			// Use int64_t for the distance calculations
-			auto distance_main_label = LevenshteinDistance(label, pg_table->main_label);
+			auto distance_main_label = LevenshteinDistance(label, pg_table->main_label.GetIdentifierName());
 			if (distance_main_label < min_distance) {
 				min_distance = distance_main_label;
-				closest_label = pg_table->main_label;
+				closest_label = pg_table->main_label.GetIdentifierName();
 			}
 
 			for (const auto &sub_label : pg_table->sub_labels) {

@@ -73,7 +73,7 @@ unique_ptr<SubqueryExpression> CreateDirectedCSRVertexSubquery(const shared_ptr<
 unique_ptr<SubqueryExpression> CreateUndirectedCSRVertexSubquery(const shared_ptr<PropertyGraphTable> &edge_table,
                                                                  const string &binding);
 unique_ptr<SubqueryExpression> GetCountTable(const shared_ptr<PropertyGraphTable> &table, const string &table_alias,
-                                             const string &primary_key);
+                                             const Identifier &primary_key);
 unique_ptr<SubqueryRef> CreateCountCTESubquery();
 unique_ptr<SubqueryExpression> GetCountUndirectedEdgeTable();
 unique_ptr<SubqueryExpression> GetCountEdgeTable(const shared_ptr<PropertyGraphTable> &edge_table);

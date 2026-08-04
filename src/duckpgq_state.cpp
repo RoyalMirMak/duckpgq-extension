@@ -57,14 +57,14 @@ void DuckPGQState::ProcessPropertyGraphs(unique_ptr<MaterializedQueryResult> &pr
 		auto table = make_shared_ptr<PropertyGraphTable>();
 
 		// Extract and validate common properties
-		table->table_name = chunk->GetValue(1, i).GetValue<string>();
-		table->main_label = chunk->GetValue(2, i).GetValue<string>();
+		table->table_name = Identifier(chunk->GetValue(1, i).GetValue<string>());
+		table->main_label = Identifier(chunk->GetValue(2, i).GetValue<string>());
 		table->is_vertex_table = chunk->GetValue(3, i).GetValue<bool>();
 
 		// Handle discriminator and sub-labels
 		const auto &discriminator = chunk->GetValue(10, i).GetValue<string>();
 		if (discriminator != "NULL") {
-			table->discriminator = discriminator;
+			table->discriminator = Identifier(discriminator);
 			auto sublabels = ListValue::GetChildren(chunk->GetValue(11, i));
 			for (const auto &sublabel : sublabels) {
 				table->sub_labels.emplace_back(sublabel.GetValue<string>());
@@ -73,32 +73,32 @@ void DuckPGQState::ProcessPropertyGraphs(unique_ptr<MaterializedQueryResult> &pr
 
 		// Extract catalog and schema names
 		if (chunk->ColumnCount() > 12) {
-			table->catalog_name = chunk->GetValue(12, i).GetValue<string>();
-			table->schema_name = chunk->GetValue(13, i).GetValue<string>();
+			table->catalog_name = Identifier(chunk->GetValue(12, i).GetValue<string>());
+			table->schema_name = Identifier(chunk->GetValue(13, i).GetValue<string>());
 		} else {
-			table->catalog_name = "";
-			table->schema_name = DEFAULT_SCHEMA;
+			table->catalog_name = Identifier();
+			table->schema_name = Identifier::DefaultSchema();
 		}
 		if (chunk->ColumnCount() > 14) {
-			table->source_catalog = chunk->GetValue(14, i).GetValue<string>();
-			table->source_schema = chunk->GetValue(15, i).GetValue<string>();
-			table->destination_catalog = chunk->GetValue(16, i).GetValue<string>();
-			table->destination_schema = chunk->GetValue(17, i).GetValue<string>();
+			table->source_catalog = Identifier(chunk->GetValue(14, i).GetValue<string>());
+			table->source_schema = Identifier(chunk->GetValue(15, i).GetValue<string>());
+			table->destination_catalog = Identifier(chunk->GetValue(16, i).GetValue<string>());
+			table->destination_schema = Identifier(chunk->GetValue(17, i).GetValue<string>());
 		} else {
-			table->source_catalog = "";
-			table->schema_name = DEFAULT_SCHEMA;
-			table->destination_catalog = "";
-			table->destination_schema = DEFAULT_SCHEMA;
+			table->source_catalog = Identifier();
+			table->source_schema = Identifier::DefaultSchema();
+			table->destination_catalog = Identifier();
+			table->destination_schema = Identifier::DefaultSchema();
 		}
 		if (chunk->ColumnCount() > 18) {
 			// read properties
 			auto properties = ListValue::GetChildren(chunk->GetValue(18, i));
 			for (const auto &property : properties) {
-				table->column_names.push_back(property.GetValue<string>());
+				table->column_names.emplace_back(property.GetValue<string>());
 			}
 			auto column_aliases = ListValue::GetChildren(chunk->GetValue(19, i));
 			for (const auto &alias : column_aliases) {
-				table->column_aliases.push_back(alias.GetValue<string>());
+				table->column_aliases.emplace_back(alias.GetValue<string>());
 			}
 		} else {
 			table->all_columns = true;
@@ -114,19 +114,19 @@ void DuckPGQState::ProcessPropertyGraphs(unique_ptr<MaterializedQueryResult> &pr
 }
 
 void DuckPGQState::PopulateEdgeSpecificFields(unique_ptr<DataChunk> &chunk, idx_t row_idx, PropertyGraphTable &table) {
-	table.source_reference = chunk->GetValue(4, row_idx).GetValue<string>();
+	table.source_reference = Identifier(chunk->GetValue(4, row_idx).GetValue<string>());
 	ExtractListValues(chunk->GetValue(5, row_idx), table.source_pk);
 	ExtractListValues(chunk->GetValue(6, row_idx), table.source_fk);
-	table.destination_reference = chunk->GetValue(7, row_idx).GetValue<string>();
+	table.destination_reference = Identifier(chunk->GetValue(7, row_idx).GetValue<string>());
 	ExtractListValues(chunk->GetValue(8, row_idx), table.destination_pk);
 	ExtractListValues(chunk->GetValue(9, row_idx), table.destination_fk);
 }
 
-void DuckPGQState::ExtractListValues(const Value &list_value, vector<string> &output) {
+void DuckPGQState::ExtractListValues(const Value &list_value, vector<Identifier> &output) {
 	auto children = ListValue::GetChildren(list_value);
 	output.reserve(output.size() + children.size());
 	for (const auto &child : children) {
-		output.push_back(child.GetValue<string>());
+		output.emplace_back(child.GetValue<string>());
 	}
 }
 
@@ -138,7 +138,7 @@ void DuckPGQState::RegisterPropertyGraph(const shared_ptr<PropertyGraphTable> &t
 	}
 
 	auto &pg_info = registered_property_graphs[graph_name]->Cast<CreatePropertyGraphInfo>();
-	pg_info.label_map[table->main_label] = table;
+	pg_info.label_map[table->main_label.GetIdentifierName()] = table;
 
 	if (!table->discriminator.empty()) {
 		for (const auto &label : table->sub_labels) {
@@ -150,10 +150,12 @@ void DuckPGQState::RegisterPropertyGraph(const shared_ptr<PropertyGraphTable> &t
 		pg_info.vertex_tables.push_back(table);
 	} else {
 		table->source_pg_table =
-		    pg_info.GetTableByName(table->source_catalog, table->source_schema, table->source_reference);
+		    pg_info.GetTableByName(table->source_catalog.GetIdentifierName(), table->source_schema.GetIdentifierName(),
+		                           table->source_reference.GetIdentifierName());
 		D_ASSERT(table->source_pg_table);
-		table->destination_pg_table =
-		    pg_info.GetTableByName(table->destination_catalog, table->destination_schema, table->destination_reference);
+		table->destination_pg_table = pg_info.GetTableByName(table->destination_catalog.GetIdentifierName(),
+		                                                     table->destination_schema.GetIdentifierName(),
+		                                                     table->destination_reference.GetIdentifierName());
 		D_ASSERT(table->destination_pg_table);
 		pg_info.edge_tables.push_back(table);
 	}

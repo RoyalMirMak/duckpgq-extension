@@ -21,7 +21,7 @@ public:
 	void RetrievePropertyGraphs(const shared_ptr<Connection> &context);
 	void ProcessPropertyGraphs(unique_ptr<MaterializedQueryResult> &property_graphs, bool is_vertex);
 	void PopulateEdgeSpecificFields(unique_ptr<DataChunk> &chunk, idx_t row_idx, PropertyGraphTable &table);
-	static void ExtractListValues(const Value &list_value, vector<string> &output);
+	static void ExtractListValues(const Value &list_value, vector<Identifier> &output);
 	void RegisterPropertyGraph(const shared_ptr<PropertyGraphTable> &table, const string &graph_name, bool is_vertex);
 
 public:

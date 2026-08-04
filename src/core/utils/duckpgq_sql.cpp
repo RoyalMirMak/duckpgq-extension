@@ -11,6 +11,10 @@ string DuckPGQSQL::Identifier(const string &identifier) {
 	return SQLIdentifier::ToString(identifier);
 }
 
+string DuckPGQSQL::Identifier(const duckdb::Identifier &identifier) {
+	return Identifier(identifier.GetIdentifierName());
+}
+
 string DuckPGQSQL::StringLiteral(const string &value) {
 	return SQLString::ToString(value);
 }
@@ -27,6 +31,11 @@ string DuckPGQSQL::QualifiedTableName(const string &catalog, const string &schem
 	return result;
 }
 
+string DuckPGQSQL::QualifiedTableName(const duckdb::Identifier &catalog, const duckdb::Identifier &schema,
+                                      const duckdb::Identifier &table) {
+	return QualifiedTableName(catalog.GetIdentifierName(), schema.GetIdentifierName(), table.GetIdentifierName());
+}
+
 string DuckPGQSQL::QualifiedTableName(const PropertyGraphTable &table) {
 	return QualifiedTableName(table.catalog_name, table.schema_name, table.table_name);
 }
@@ -39,6 +48,11 @@ string DuckPGQSQL::TableRef(const string &catalog, const string &schema, const s
 	return result;
 }
 
+string DuckPGQSQL::TableRef(const duckdb::Identifier &catalog, const duckdb::Identifier &schema,
+                            const duckdb::Identifier &table, const string &alias) {
+	return TableRef(catalog.GetIdentifierName(), schema.GetIdentifierName(), table.GetIdentifierName(), alias);
+}
+
 string DuckPGQSQL::TableRef(const PropertyGraphTable &table, const string &alias) {
 	auto result = QualifiedTableName(table);
 	if (!alias.empty()) {
@@ -47,11 +61,27 @@ string DuckPGQSQL::TableRef(const PropertyGraphTable &table, const string &alias
 	return result;
 }
 
+string DuckPGQSQL::TableRef(const PropertyGraphTable &table, const duckdb::Identifier &alias) {
+	return TableRef(table, alias.GetIdentifierName());
+}
+
 string DuckPGQSQL::Column(const string &column_name, const string &table_name) {
 	if (table_name.empty()) {
 		return Identifier(column_name);
 	}
 	return Identifier(table_name) + "." + Identifier(column_name);
+}
+
+string DuckPGQSQL::Column(const duckdb::Identifier &column_name, const string &table_name) {
+	return Column(column_name.GetIdentifierName(), table_name);
+}
+
+string DuckPGQSQL::Column(const string &column_name, const duckdb::Identifier &table_name) {
+	return Column(column_name, table_name.GetIdentifierName());
+}
+
+string DuckPGQSQL::Column(const duckdb::Identifier &column_name, const duckdb::Identifier &table_name) {
+	return Column(column_name.GetIdentifierName(), table_name.GetIdentifierName());
 }
 
 unique_ptr<SelectStatement> DuckPGQSQL::ParseSelect(const string &query, const string &context) {
