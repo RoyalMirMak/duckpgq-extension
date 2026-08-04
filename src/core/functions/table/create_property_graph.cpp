@@ -58,6 +58,18 @@ static void ThrowMissingVertexReference(CreatePropertyGraphInfo &info, const Ide
 	info.GetTableByName(catalog_name.GetIdentifierName(), schema_name.GetIdentifierName(), table_name.GetIdentifierName());
 }
 
+static vector<Identifier> ExpandAllColumnsExcept(vector<string> column_names, const vector<Identifier> &except_columns) {
+	auto excluded_columns = IdentifiersToStrings(except_columns);
+	vector<string> selected_columns;
+
+	// Preserve the historical output order for expanded property columns.
+	std::sort(column_names.begin(), column_names.end());
+	std::sort(excluded_columns.begin(), excluded_columns.end());
+	std::set_difference(column_names.begin(), column_names.end(), excluded_columns.begin(), excluded_columns.end(),
+	                    std::back_inserter(selected_columns));
+	return StringsToIdentifiers(selected_columns);
+}
+
 void CreatePropertyGraphFunction::CheckPropertyGraphTableLabels(const shared_ptr<PropertyGraphTable> &pg_table,
                                                                 optional_ptr<TableCatalogEntry> &table) {
 	if (!pg_table->discriminator.empty()) {
@@ -88,13 +100,7 @@ void CreatePropertyGraphFunction::CheckPropertyGraphTableColumns(const shared_pt
 			}
 		}
 
-		auto columns_of_table = StringsToIdentifiers(table->GetColumns().GetColumnNames());
-
-		std::sort(std::begin(columns_of_table), std::end(columns_of_table));
-		std::sort(std::begin(pg_table->except_columns), std::end(pg_table->except_columns));
-		std::set_difference(columns_of_table.begin(), columns_of_table.end(), pg_table->except_columns.begin(),
-		                    pg_table->except_columns.end(),
-		                    std::inserter(pg_table->column_names, pg_table->column_names.begin()));
+		pg_table->column_names = ExpandAllColumnsExcept(table->GetColumns().GetColumnNames(), pg_table->except_columns);
 		pg_table->column_aliases = pg_table->column_names;
 		return;
 	}

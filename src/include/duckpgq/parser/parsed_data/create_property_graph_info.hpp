@@ -170,7 +170,7 @@ public:
 			if (pg_table->is_vertex_table != is_vertex_table) {
 				continue;
 			}
-			if (pg_table->table_name == label) {
+			if (pg_table->table_name.GetIdentifierName() == label) {
 				throw Exception(
 				    ExceptionType::INVALID,
 				    "Table '" + label +
