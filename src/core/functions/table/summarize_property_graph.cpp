@@ -62,8 +62,8 @@ static string PGQSQLDegreeStatisticsCTE(const shared_ptr<PropertyGraphTable> &pg
 	      << PGQSQLDegreeStatisticExpression("approx_quantile", "q75", is_in_degree, "0.75") << " FROM (SELECT "
 	      << DuckPGQSQL::Identifier(degree_column) << ", count(*) AS "
 	      << DuckPGQSQL::Identifier(PGQSQLDegreeColumn(is_in_degree)) << " FROM "
-	      << DuckPGQSQL::TableRef(*pg_table, string("degree_source")) << " GROUP BY " << DuckPGQSQL::Identifier(degree_column)
-	      << ") AS degree_groups";
+	      << DuckPGQSQL::TableRef(*pg_table, string("degree_source")) << " GROUP BY "
+	      << DuckPGQSQL::Identifier(degree_column) << ") AS degree_groups";
 	return query.str();
 }
 
@@ -86,8 +86,8 @@ static string PGQSQLIsolatedNodes(shared_ptr<PropertyGraphTable> &pg_table, bool
 	query << "(SELECT count(" << DuckPGQSQL::Column(pk_reference, string("vertex_table")) << ") FROM "
 	      << DuckPGQSQL::TableRef(table_catalog, table_schema, table_reference, string("vertex_table")) << " LEFT JOIN "
 	      << DuckPGQSQL::TableRef(*pg_table, string("edge_table")) << " ON "
-	      << DuckPGQSQL::Column(pk_reference, string("vertex_table"))
-	      << " = " << DuckPGQSQL::Column(fk_reference, string("edge_table")) << " WHERE "
+	      << DuckPGQSQL::Column(pk_reference, string("vertex_table")) << " = "
+	      << DuckPGQSQL::Column(fk_reference, string("edge_table")) << " WHERE "
 	      << DuckPGQSQL::Column(fk_reference, string("edge_table")) << " IS NULL)";
 	return query.str();
 }
@@ -125,38 +125,27 @@ static string PGQSQLEdgeTableCTE(shared_ptr<PropertyGraphTable> &edge_table) {
 	      << PGQSQLStringAlias(edge_table->source_reference.GetIdentifierName(), "source_table") << ", "
 	      << PGQSQLStringAlias(edge_table->destination_reference.GetIdentifierName(), "destination_table") << ", "
 	      << PGQSQLNullAlias("vertex_count") << ", " << PGQSQLCountStarAlias("edge_count") << ", "
-	      << PGQSQLDistinctCount(edge_table, true) << " AS "
-	      << DuckPGQSQL::Identifier(string("unique_source_count")) << ", "
-	      << PGQSQLDistinctCount(edge_table, false) << " AS "
-	      << DuckPGQSQL::Identifier(string("unique_destination_count"))
-	      << ", " << PGQSQLIsolatedNodes(edge_table, true) << " AS "
-	      << DuckPGQSQL::Identifier(string("isolated_sources"))
-	      << ", " << PGQSQLIsolatedNodes(edge_table, false) << " AS "
-	      << DuckPGQSQL::Identifier(string("isolated_destinations"))
+	      << PGQSQLDistinctCount(edge_table, true) << " AS " << DuckPGQSQL::Identifier(string("unique_source_count"))
+	      << ", " << PGQSQLDistinctCount(edge_table, false) << " AS "
+	      << DuckPGQSQL::Identifier(string("unique_destination_count")) << ", " << PGQSQLIsolatedNodes(edge_table, true)
+	      << " AS " << DuckPGQSQL::Identifier(string("isolated_sources")) << ", "
+	      << PGQSQLIsolatedNodes(edge_table, false) << " AS " << DuckPGQSQL::Identifier(string("isolated_destinations"))
 	      << ", " << PGQSQLDegreeStatisticScalar("avg", true) << " AS "
-	      << DuckPGQSQL::Identifier(string("avg_in_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("min", true) << " AS "
-	      << DuckPGQSQL::Identifier(string("min_in_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("max", true) << " AS "
-	      << DuckPGQSQL::Identifier(string("max_in_degree"))
+	      << DuckPGQSQL::Identifier(string("avg_in_degree")) << ", " << PGQSQLDegreeStatisticScalar("min", true)
+	      << " AS " << DuckPGQSQL::Identifier(string("min_in_degree")) << ", "
+	      << PGQSQLDegreeStatisticScalar("max", true) << " AS " << DuckPGQSQL::Identifier(string("max_in_degree"))
 	      << ", " << PGQSQLDegreeStatisticScalar("q25", true) << " AS "
-	      << DuckPGQSQL::Identifier(string("q25_in_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("q50", true) << " AS "
-	      << DuckPGQSQL::Identifier(string("q50_in_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("q75", true) << " AS "
-	      << DuckPGQSQL::Identifier(string("q75_in_degree"))
+	      << DuckPGQSQL::Identifier(string("q25_in_degree")) << ", " << PGQSQLDegreeStatisticScalar("q50", true)
+	      << " AS " << DuckPGQSQL::Identifier(string("q50_in_degree")) << ", "
+	      << PGQSQLDegreeStatisticScalar("q75", true) << " AS " << DuckPGQSQL::Identifier(string("q75_in_degree"))
 	      << ", " << PGQSQLDegreeStatisticScalar("avg", false) << " AS "
-	      << DuckPGQSQL::Identifier(string("avg_out_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("min", false) << " AS "
-	      << DuckPGQSQL::Identifier(string("min_out_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("max", false) << " AS "
-	      << DuckPGQSQL::Identifier(string("max_out_degree"))
+	      << DuckPGQSQL::Identifier(string("avg_out_degree")) << ", " << PGQSQLDegreeStatisticScalar("min", false)
+	      << " AS " << DuckPGQSQL::Identifier(string("min_out_degree")) << ", "
+	      << PGQSQLDegreeStatisticScalar("max", false) << " AS " << DuckPGQSQL::Identifier(string("max_out_degree"))
 	      << ", " << PGQSQLDegreeStatisticScalar("q25", false) << " AS "
-	      << DuckPGQSQL::Identifier(string("q25_out_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("q50", false) << " AS "
-	      << DuckPGQSQL::Identifier(string("q50_out_degree"))
-	      << ", " << PGQSQLDegreeStatisticScalar("q75", false) << " AS "
-	      << DuckPGQSQL::Identifier(string("q75_out_degree"))
+	      << DuckPGQSQL::Identifier(string("q25_out_degree")) << ", " << PGQSQLDegreeStatisticScalar("q50", false)
+	      << " AS " << DuckPGQSQL::Identifier(string("q50_out_degree")) << ", "
+	      << PGQSQLDegreeStatisticScalar("q75", false) << " AS " << DuckPGQSQL::Identifier(string("q75_out_degree"))
 	      << " FROM " << DuckPGQSQL::TableRef(*edge_table, string("edge_table"));
 	return query.str();
 }

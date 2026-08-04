@@ -103,7 +103,8 @@ unique_ptr<FunctionData> CSRFunctionData::CSRBind(BindScalarFunctionInput &input
 	return make_uniq<CSRFunctionData>(context, id.GetValue<int32_t>(), LogicalType::BOOLEAN);
 }
 
-static string CSRCountTableSQL(const PropertyGraphTable &table, const string &table_alias, const Identifier &primary_key) {
+static string CSRCountTableSQL(const PropertyGraphTable &table, const string &table_alias,
+                               const Identifier &primary_key) {
 	std::ostringstream query;
 	query << "SELECT count(" << DuckPGQSQL::Column(primary_key, table_alias) << ") FROM "
 	      << DuckPGQSQL::TableRef(table, table_alias);
@@ -216,8 +217,7 @@ unique_ptr<CommonTableExpressionInfo> CreateUndirectedCSRCTE(const shared_ptr<Pr
 	      << CSRCountTableSQL(*edge_table->source_pg_table, edge_table->source_reference.GetIdentifierName(),
 	                          edge_table->source_pk[0])
 	      << "), CAST((" << CSRUndirectedCSRVertexSQL(*edge_table, edge_table->source_reference.GetIdentifierName())
-	      << ") AS BIGINT), ("
-	      << CSRCountUndirectedEdgeTableSQL() << "), src, dst, edge) AS temp FROM ("
+	      << ") AS BIGINT), (" << CSRCountUndirectedEdgeTableSQL() << "), src, dst, edge) AS temp FROM ("
 	      << "SELECT src, dst, any_value(edges) AS edge FROM ("
 	      << "SELECT src, dst, edges FROM edges_cte UNION ALL SELECT dst, src, edges FROM edges_cte"
 	      << ") GROUP BY src, dst)";
@@ -242,8 +242,8 @@ unique_ptr<CommonTableExpressionInfo> CreateDirectedCSRCTE(const shared_ptr<Prop
 	      << CSRDirectedCSRVertexSQL(*edge_table, prev_binding) << ") AS BIGINT), ("
 	      << CSRCountEdgeTableSQL(*edge_table) << "), " << DuckPGQSQL::Column(string("rowid"), prev_binding) << ", "
 	      << DuckPGQSQL::Column(string("rowid"), next_binding) << ", "
-	      << DuckPGQSQL::Column(string("rowid"), edge_binding)
-	      << ") AS temp FROM " << DuckPGQSQL::TableRef(*edge_table, edge_binding) << " INNER JOIN "
+	      << DuckPGQSQL::Column(string("rowid"), edge_binding) << ") AS temp FROM "
+	      << DuckPGQSQL::TableRef(*edge_table, edge_binding) << " INNER JOIN "
 	      << DuckPGQSQL::TableRef(*edge_table->source_pg_table, prev_binding) << " ON "
 	      << DuckPGQSQL::Column(edge_table->source_fk[0], edge_binding) << " = "
 	      << DuckPGQSQL::Column(edge_table->source_pk[0], prev_binding) << " INNER JOIN "

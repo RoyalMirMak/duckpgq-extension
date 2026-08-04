@@ -57,8 +57,7 @@ public:
 	                         const vector<unique_ptr<Constraint>> &table_constraints);
 
 	static void ValidateForeignKeyColumns(shared_ptr<PropertyGraphTable> &edge_table,
-	                                      const vector<Identifier> &fk_columns,
-	                                      optional_ptr<TableCatalogEntry> &table);
+	                                      const vector<Identifier> &fk_columns, optional_ptr<TableCatalogEntry> &table);
 
 	static unique_ptr<GlobalTableFunctionState> CreatePropertyGraphInit(ClientContext &context,
 	                                                                    TableFunctionInitInput &input);

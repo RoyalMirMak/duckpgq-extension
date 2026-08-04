@@ -55,10 +55,12 @@ static optional_ptr<CatalogEntry> GetPropertyGraphView(ClientContext &context,
 
 static void ThrowMissingVertexReference(CreatePropertyGraphInfo &info, const Identifier &catalog_name,
                                         const Identifier &schema_name, const Identifier &table_name) {
-	info.GetTableByName(catalog_name.GetIdentifierName(), schema_name.GetIdentifierName(), table_name.GetIdentifierName());
+	info.GetTableByName(catalog_name.GetIdentifierName(), schema_name.GetIdentifierName(),
+	                    table_name.GetIdentifierName());
 }
 
-static vector<Identifier> ExpandAllColumnsExcept(vector<string> column_names, const vector<Identifier> &except_columns) {
+static vector<Identifier> ExpandAllColumnsExcept(vector<string> column_names,
+                                                 const vector<Identifier> &except_columns) {
 	auto excluded_columns = IdentifiersToStrings(except_columns);
 	vector<string> selected_columns;
 
