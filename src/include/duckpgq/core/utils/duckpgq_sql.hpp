@@ -13,12 +13,21 @@ namespace duckdb {
 
 struct DuckPGQSQL {
 	static string Identifier(const string &identifier);
+	static string Identifier(const duckdb::Identifier &identifier);
 	static string StringLiteral(const string &value);
 	static string QualifiedTableName(const string &catalog, const string &schema, const string &table);
+	static string QualifiedTableName(const duckdb::Identifier &catalog, const duckdb::Identifier &schema,
+	                                 const duckdb::Identifier &table);
 	static string QualifiedTableName(const PropertyGraphTable &table);
 	static string TableRef(const string &catalog, const string &schema, const string &table, const string &alias = "");
+	static string TableRef(const duckdb::Identifier &catalog, const duckdb::Identifier &schema,
+	                       const duckdb::Identifier &table, const string &alias = "");
 	static string TableRef(const PropertyGraphTable &table, const string &alias = "");
+	static string TableRef(const PropertyGraphTable &table, const duckdb::Identifier &alias);
 	static string Column(const string &column_name, const string &table_name = "");
+	static string Column(const duckdb::Identifier &column_name, const string &table_name = "");
+	static string Column(const string &column_name, const duckdb::Identifier &table_name);
+	static string Column(const duckdb::Identifier &column_name, const duckdb::Identifier &table_name);
 
 	static unique_ptr<SelectStatement> ParseSelect(const string &query, const string &context = "DuckPGQ query");
 	static unique_ptr<CommonTableExpressionInfo> ParseCTE(const string &query, const string &context = "DuckPGQ query");

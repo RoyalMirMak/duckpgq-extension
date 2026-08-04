@@ -17,20 +17,24 @@ static Identifier PGQIdentifier(const string &value) {
 	return Identifier(value);
 }
 
-static void BindPropertyGraphTable(ClientContext &context, const shared_ptr<PropertyGraphTable> &table) {
-	auto catalog = PGQIdentifier(table->catalog_name);
-	auto schema = PGQIdentifier(table->schema_name);
-	Binder::BindSchemaOrCatalog(context, catalog, schema);
-	table->catalog_name = catalog.GetIdentifierName();
-	table->schema_name = schema.GetIdentifierName();
+static Identifier PGQIdentifier(const Identifier &value) {
+	return value;
 }
 
-static void BindPropertyGraphReference(ClientContext &context, string &catalog_name, string &schema_name) {
-	auto catalog = PGQIdentifier(catalog_name);
-	auto schema = PGQIdentifier(schema_name);
+static void BindPropertyGraphTable(ClientContext &context, const shared_ptr<PropertyGraphTable> &table) {
+	auto catalog = table->catalog_name;
+	auto schema = table->schema_name;
 	Binder::BindSchemaOrCatalog(context, catalog, schema);
-	catalog_name = catalog.GetIdentifierName();
-	schema_name = schema.GetIdentifierName();
+	table->catalog_name = catalog;
+	table->schema_name = schema;
+}
+
+static void BindPropertyGraphReference(ClientContext &context, Identifier &catalog_name, Identifier &schema_name) {
+	auto catalog = catalog_name;
+	auto schema = schema_name;
+	Binder::BindSchemaOrCatalog(context, catalog, schema);
+	catalog_name = catalog;
+	schema_name = schema;
 }
 
 static optional_ptr<TableCatalogEntry> GetPropertyGraphTable(ClientContext &context,
@@ -49,9 +53,9 @@ static optional_ptr<CatalogEntry> GetPropertyGraphView(ClientContext &context,
 	                        PGQIdentifier(table->table_name), OnEntryNotFound::RETURN_NULL);
 }
 
-static void ThrowMissingVertexReference(CreatePropertyGraphInfo &info, const string &catalog_name,
-                                        const string &schema_name, const string &table_name) {
-	info.GetTableByName(catalog_name, schema_name, table_name);
+static void ThrowMissingVertexReference(CreatePropertyGraphInfo &info, const Identifier &catalog_name,
+                                        const Identifier &schema_name, const Identifier &table_name) {
+	info.GetTableByName(catalog_name.GetIdentifierName(), schema_name.GetIdentifierName(), table_name.GetIdentifierName());
 }
 
 void CreatePropertyGraphFunction::CheckPropertyGraphTableLabels(const shared_ptr<PropertyGraphTable> &pg_table,
@@ -84,7 +88,7 @@ void CreatePropertyGraphFunction::CheckPropertyGraphTableColumns(const shared_pt
 			}
 		}
 
-		auto columns_of_table = table->GetColumns().GetColumnNames();
+		auto columns_of_table = StringsToIdentifiers(table->GetColumns().GetColumnNames());
 
 		std::sort(std::begin(columns_of_table), std::end(columns_of_table));
 		std::sort(std::begin(pg_table->except_columns), std::end(pg_table->except_columns));
@@ -103,9 +107,9 @@ void CreatePropertyGraphFunction::CheckPropertyGraphTableColumns(const shared_pt
 }
 
 // Helper function to validate source/destination keys
-void CreatePropertyGraphFunction::ValidateKeys(shared_ptr<PropertyGraphTable> &edge_table, const string &reference,
-                                               const string &key_type, vector<string> &pk_columns,
-                                               vector<string> &fk_columns,
+void CreatePropertyGraphFunction::ValidateKeys(shared_ptr<PropertyGraphTable> &edge_table, const Identifier &reference,
+                                               const string &key_type, vector<Identifier> &pk_columns,
+                                               vector<Identifier> &fk_columns,
                                                const vector<unique_ptr<Constraint>> &table_constraints) {
 	// todo(dtenwolde) add test case for attached databases or different schema that has pk-fk relationships
 	if (fk_columns.empty() && pk_columns.empty()) {
@@ -134,8 +138,8 @@ void CreatePropertyGraphFunction::ValidateKeys(shared_ptr<PropertyGraphTable> &e
 					                                            " KEY <primary key> REFERENCES " + reference +
 					                                            " <foreign key>`");
 				}
-				pk_columns = IdentifiersToStrings(fk_constraint.pk_columns);
-				fk_columns = IdentifiersToStrings(fk_constraint.fk_columns);
+				pk_columns = fk_constraint.pk_columns;
+				fk_columns = fk_constraint.fk_columns;
 			}
 		}
 
@@ -154,7 +158,7 @@ void CreatePropertyGraphFunction::ValidateKeys(shared_ptr<PropertyGraphTable> &e
 }
 
 void CreatePropertyGraphFunction::ValidateForeignKeyColumns(shared_ptr<PropertyGraphTable> &edge_table,
-                                                            const vector<string> &fk_columns,
+                                                            const vector<Identifier> &fk_columns,
                                                             optional_ptr<TableCatalogEntry> &table) {
 	for (const auto &fk : fk_columns) {
 		if (!table->ColumnExists(PGQIdentifier(fk))) {
@@ -176,7 +180,7 @@ void CreatePropertyGraphFunction::ValidateVertexTableRegistration(shared_ptr<Pro
 // Helper function to validate primary keys in the source or destination tables
 void CreatePropertyGraphFunction::ValidatePrimaryKeyInTable(ClientContext &context,
                                                             shared_ptr<PropertyGraphTable> &pg_table,
-                                                            const vector<string> &pk_columns) {
+                                                            const vector<Identifier> &pk_columns) {
 	auto table = GetPropertyGraphTable(context, pg_table);
 	if (!table) {
 		throw Exception(ExceptionType::INVALID, "Table with name " + pg_table->table_name + " does not exist");
@@ -238,7 +242,7 @@ unique_ptr<FunctionData> CreatePropertyGraphFunction::CreatePropertyGraphBind(Cl
 		}
 		v_table_names.insert(vertex_table->FullTableName());
 		if (vertex_table->hasTableNameAlias()) {
-			v_table_names.insert(vertex_table->table_name_alias);
+			v_table_names.insert(vertex_table->table_name_alias.GetIdentifierName());
 		}
 	}
 

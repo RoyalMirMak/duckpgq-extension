@@ -43,10 +43,11 @@ public:
 	static void CheckInheritance(const shared_ptr<PropertyGraphTable> &tableref, PathElement *element,
 	                             vector<unique_ptr<ParsedExpression>> &conditions);
 
-	static void CheckEdgeTableConstraints(const string &src_reference, const string &dst_reference,
+	static void CheckEdgeTableConstraints(const Identifier &src_reference, const Identifier &dst_reference,
 	                                      const shared_ptr<PropertyGraphTable> &edge_table);
 
-	static unique_ptr<ParsedExpression> CreateMatchJoinExpression(vector<string> vertex_keys, vector<string> edge_keys,
+	static unique_ptr<ParsedExpression> CreateMatchJoinExpression(vector<Identifier> vertex_keys,
+	                                                              vector<Identifier> edge_keys,
 	                                                              const string &vertex_alias, const string &edge_alias);
 
 	// Populate all vertex and edge tables and their alias into
@@ -74,12 +75,12 @@ public:
 	                        const string &prev_binding, const string &next_binding,
 	                        vector<unique_ptr<ParsedExpression>> &conditions, unique_ptr<TableRef> &from_clause);
 
-	static void EdgeTypeLeft(const shared_ptr<PropertyGraphTable> &edge_table, const string &next_table_name,
-	                         const string &prev_table_name, const string &edge_binding, const string &prev_binding,
+	static void EdgeTypeLeft(const shared_ptr<PropertyGraphTable> &edge_table, const Identifier &next_table_name,
+	                         const Identifier &prev_table_name, const string &edge_binding, const string &prev_binding,
 	                         const string &next_binding, vector<unique_ptr<ParsedExpression>> &conditions);
 
-	static void EdgeTypeRight(const shared_ptr<PropertyGraphTable> &edge_table, const string &next_table_name,
-	                          const string &prev_table_name, const string &edge_binding, const string &prev_binding,
+	static void EdgeTypeRight(const shared_ptr<PropertyGraphTable> &edge_table, const Identifier &next_table_name,
+	                          const Identifier &prev_table_name, const string &edge_binding, const string &prev_binding,
 	                          const string &next_binding, vector<unique_ptr<ParsedExpression>> &conditions);
 
 	static void EdgeTypeLeftRight(const shared_ptr<PropertyGraphTable> &edge_table, const string &edge_binding,

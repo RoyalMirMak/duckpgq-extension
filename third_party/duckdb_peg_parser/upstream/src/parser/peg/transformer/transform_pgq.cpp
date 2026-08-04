@@ -18,15 +18,6 @@ static string PGQIdentifierName(const Identifier &identifier) {
 	return identifier.GetIdentifierName();
 }
 
-static vector<string> PGQIdentifierNames(const vector<Identifier> &identifiers) {
-	vector<string> result;
-	result.reserve(identifiers.size());
-	for (auto &identifier : identifiers) {
-		result.push_back(PGQIdentifierName(identifier));
-	}
-	return result;
-}
-
 static vector<Identifier> PGQIdentifiers(const vector<Identifier> &identifiers) {
 	vector<Identifier> result;
 	result.reserve(identifiers.size());
@@ -38,14 +29,14 @@ static vector<Identifier> PGQIdentifiers(const vector<Identifier> &identifiers) 
 
 static void PGQApplyBaseTableName(PropertyGraphTable &table, const BaseTableRef &base_table_name) {
 	auto &qualified_name = base_table_name.GetQualifiedName();
-	table.catalog_name = PGQIdentifierName(qualified_name.Catalog());
-	table.schema_name = PGQIdentifierName(qualified_name.Schema());
-	table.table_name = PGQIdentifierName(qualified_name.Name());
+	table.catalog_name = qualified_name.Catalog();
+	table.schema_name = qualified_name.Schema();
+	table.table_name = qualified_name.Name();
 }
 
 static void PGQApplyTableAlias(PropertyGraphTable &table, const optional<TableAlias> &table_alias) {
 	if (table_alias) {
-		table.table_name_alias = PGQIdentifierName(table_alias->name);
+		table.table_name_alias = table_alias->name;
 	}
 }
 
@@ -54,24 +45,24 @@ static void PGQApplyProperties(PropertyGraphTable &table, const optional<Propert
 		table.all_columns = true;
 		return;
 	}
-	table.column_names = PGQIdentifierNames(properties->columns);
-	table.except_columns = PGQIdentifierNames(properties->except_columns);
+	table.column_names = PGQIdentifiers(properties->columns);
+	table.except_columns = PGQIdentifiers(properties->except_columns);
 	table.all_columns = properties->all_columns;
 	table.no_columns = properties->no_columns;
 }
 
 static void PGQApplyLabel(PropertyGraphTable &table, const optional<PropertyGraphLabel> &label) {
 	if (label && !label->main_label.GetIdentifierName().empty()) {
-		table.main_label = PGQIdentifierName(label->main_label);
+		table.main_label = label->main_label;
 		if (label->sub_labels) {
-			table.discriminator = PGQIdentifierName(label->sub_labels->discriminator);
+			table.discriminator = label->sub_labels->discriminator;
 			table.sub_labels = PGQIdentifiers(label->sub_labels->labels);
 		}
 	} else {
 		table.main_label = table.table_name_alias.empty() ? table.table_name : table.table_name_alias;
 	}
 	if (label && label->main_label.GetIdentifierName().empty() && label->sub_labels) {
-		table.discriminator = PGQIdentifierName(label->sub_labels->discriminator);
+		table.discriminator = label->sub_labels->discriminator;
 		table.sub_labels = PGQIdentifiers(label->sub_labels->labels);
 	}
 }
@@ -87,28 +78,28 @@ static void PGQApplyReference(PropertyGraphTable &edge_table, PropertyGraphTable
 	auto &foreign_keys = source ? edge_table.source_fk : edge_table.destination_fk;
 	auto &primary_keys = source ? edge_table.source_pk : edge_table.destination_pk;
 
-	catalog = PGQIdentifierName(qualified_name.Catalog());
-	schema = PGQIdentifierName(qualified_name.Schema());
-	table = PGQIdentifierName(qualified_name.Name());
-	foreign_keys = PGQIdentifierNames(reference.foreign_keys);
-	primary_keys = PGQIdentifierNames(reference.primary_keys);
+	catalog = qualified_name.Catalog();
+	schema = qualified_name.Schema();
+	table = qualified_name.Name();
+	foreign_keys = PGQIdentifiers(reference.foreign_keys);
+	primary_keys = PGQIdentifiers(reference.primary_keys);
 }
 
-static bool PGQMatchesVertexReference(const shared_ptr<PropertyGraphTable> &vertex_table, const string &catalog_name,
-                                      const string &schema_name, const string &table_name) {
-	if (!catalog_name.empty() && !StringUtil::CIEquals(vertex_table->catalog_name, catalog_name)) {
+static bool PGQMatchesVertexReference(const shared_ptr<PropertyGraphTable> &vertex_table, const Identifier &catalog_name,
+                                      const Identifier &schema_name, const Identifier &table_name) {
+	if (!catalog_name.empty() && vertex_table->catalog_name != catalog_name) {
 		return false;
 	}
-	if (!schema_name.empty() && !StringUtil::CIEquals(vertex_table->schema_name, schema_name)) {
+	if (!schema_name.empty() && vertex_table->schema_name != schema_name) {
 		return false;
 	}
-	return StringUtil::CIEquals(vertex_table->table_name, table_name) ||
-	       (!vertex_table->table_name_alias.empty() && StringUtil::CIEquals(vertex_table->table_name_alias, table_name));
+	return vertex_table->table_name == table_name ||
+	       (!vertex_table->table_name_alias.empty() && vertex_table->table_name_alias == table_name);
 }
 
 static shared_ptr<PropertyGraphTable> PGQFindVertexTable(const vector<shared_ptr<PropertyGraphTable>> &vertex_tables,
-                                                         const string &catalog_name, const string &schema_name,
-                                                         const string &table_name) {
+                                                         const Identifier &catalog_name, const Identifier &schema_name,
+                                                         const Identifier &table_name) {
 	for (auto &vertex_table : vertex_tables) {
 		if (PGQMatchesVertexReference(vertex_table, catalog_name, schema_name, table_name)) {
 			return vertex_table;
@@ -127,11 +118,14 @@ static void PGQLinkEdgeReferences(CreatePropertyGraphInfo &info) {
 	}
 }
 
-static void PGQRegisterLabel(CreatePropertyGraphInfo &info, const string &label, const shared_ptr<PropertyGraphTable> &table) {
-	if (info.label_map.find(label) != info.label_map.end()) {
-		throw ConstraintException("Label %s is not unique, make sure all labels are unique", StringUtil::Lower(label));
+static void PGQRegisterLabel(CreatePropertyGraphInfo &info, const Identifier &label,
+                             const shared_ptr<PropertyGraphTable> &table) {
+	auto label_name = label.GetIdentifierName();
+	if (info.label_map.find(label_name) != info.label_map.end()) {
+		throw ConstraintException("Label %s is not unique, make sure all labels are unique",
+		                          StringUtil::Lower(label_name));
 	}
-	info.label_map[label] = table;
+	info.label_map[label_name] = table;
 }
 
 unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreatePropertyGraphStmt(
@@ -152,13 +146,13 @@ unique_ptr<CreateStatement> PEGTransformerFactory::TransformCreatePropertyGraphS
 	for (auto &vertex_table : info->vertex_tables) {
 		PGQRegisterLabel(*info, vertex_table->main_label, vertex_table);
 		for (auto &label : vertex_table->sub_labels) {
-			PGQRegisterLabel(*info, label.GetIdentifierName(), vertex_table);
+			PGQRegisterLabel(*info, label, vertex_table);
 		}
 	}
 	for (auto &edge_table : info->edge_tables) {
 		PGQRegisterLabel(*info, edge_table->main_label, edge_table);
 		for (auto &label : edge_table->sub_labels) {
-			PGQRegisterLabel(*info, label.GetIdentifierName(), edge_table);
+			PGQRegisterLabel(*info, label, edge_table);
 		}
 	}
 	result->info = std::move(info);

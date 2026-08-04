@@ -36,12 +36,20 @@ static Identifier PGQIdentifier(const string &value) {
 	return Identifier(value);
 }
 
+static Identifier PGQIdentifier(const Identifier &value) {
+	return value;
+}
+
 static void SetExpressionAlias(ParsedExpression &expr, const string &alias) {
 	expr.SetAlias(PGQIdentifier(alias));
 }
 
 static unique_ptr<ColumnRefExpression> PGQColumnRef(const string &column_name, const string &table_name) {
 	return make_uniq<ColumnRefExpression>(PGQIdentifier(column_name), PGQIdentifier(table_name));
+}
+
+static unique_ptr<ColumnRefExpression> PGQColumnRef(const Identifier &column_name, const string &table_name) {
+	return make_uniq<ColumnRefExpression>(column_name, PGQIdentifier(table_name));
 }
 
 static unique_ptr<ColumnRefExpression> PGQColumnRef(const string &table_name, const string &column_name,
@@ -53,8 +61,16 @@ static unique_ptr<ColumnRefExpression> PGQColumnRef(const string &table_name, co
 	return make_uniq<ColumnRefExpression>(std::move(column_names));
 }
 
+static unique_ptr<ColumnRefExpression> PGQColumnRef(const string &table_name, const Identifier &column_name,
+                                                    bool qualified) {
+	vector<Identifier> column_names;
+	column_names.push_back(PGQIdentifier(table_name));
+	column_names.push_back(column_name);
+	return make_uniq<ColumnRefExpression>(std::move(column_names));
+}
+
 static string DuckPGQSQLCountTable(const PropertyGraphTable &table, const string &table_alias,
-                                   const string &primary_key) {
+                                   const Identifier &primary_key) {
 	std::ostringstream query;
 	query << "SELECT count(" << DuckPGQSQL::Column(primary_key, table_alias) << ") FROM "
 	      << DuckPGQSQL::TableRef(table, table_alias);
@@ -193,18 +209,18 @@ void PopulateFullyQualifiedColName(const vector<shared_ptr<PropertyGraphTable>> 
 	for (const auto &cur_tbl : tbls) {
 		for (const auto &cur_col : cur_tbl->column_names) {
 			// It's legal to query by `<col>` instead of `<table>.<col>`.
-			col_names.insert(cur_col);
+			col_names.insert(cur_col.GetIdentifierName());
 
-			const string &tbl_name = cur_tbl->table_name;
+			const auto &tbl_name = cur_tbl->table_name.GetIdentifierName();
 			auto iter = tbl_name_to_aliases.find(tbl_name);
 			// Prefer to use table alias specified in the statement, otherwise use
 			// table name.
 			if (iter == tbl_name_to_aliases.end()) {
-				col_names.insert(StringUtil::Format("%s.%s", tbl_name, cur_col));
+				col_names.insert(StringUtil::Format("%s.%s", tbl_name, cur_col.GetIdentifierName()));
 			} else {
 				const auto &all_aliases = iter->second;
 				for (const auto &cur_alias : all_aliases) {
-					col_names.insert(StringUtil::Format("%s.%s", cur_alias, cur_col));
+					col_names.insert(StringUtil::Format("%s.%s", cur_alias, cur_col.GetIdentifierName()));
 				}
 			}
 		}
@@ -217,7 +233,7 @@ GetFullyQualifiedColFromPg(const CreatePropertyGraphInfo &pg,
                            const case_insensitive_map_t<shared_ptr<PropertyGraphTable>> &alias_map) {
 	case_insensitive_map_t<vector<string>> relation_name_to_aliases;
 	for (const auto &entry : alias_map) {
-		relation_name_to_aliases[entry.second->table_name].emplace_back(entry.first);
+		relation_name_to_aliases[entry.second->table_name.GetIdentifierName()].emplace_back(entry.first);
 	}
 
 	case_insensitive_set_t col_names;
@@ -267,9 +283,9 @@ bool IsSameGraphVertexReference(const PropertyGraphTable &edge_table) {
 		return edge_table.source_pg_table && edge_table.destination_pg_table &&
 		       edge_table.source_pg_table->SameTableIdentity(*edge_table.destination_pg_table);
 	}
-	return Identifier(edge_table.source_catalog) == Identifier(edge_table.destination_catalog) &&
-	       Identifier(edge_table.source_schema) == Identifier(edge_table.destination_schema) &&
-	       Identifier(edge_table.source_reference) == Identifier(edge_table.destination_reference);
+	return edge_table.source_catalog == edge_table.destination_catalog &&
+	       edge_table.source_schema == edge_table.destination_schema &&
+	       edge_table.source_reference == edge_table.destination_reference;
 }
 
 string CreateReverseSelfLoopFilter(const PropertyGraphTable &edge_table, const string &edge_binding) {
@@ -280,7 +296,7 @@ string CreateReverseSelfLoopFilter(const PropertyGraphTable &edge_table, const s
 	vector<string> equality_conditions;
 	for (idx_t source_idx = 0; source_idx < edge_table.source_pk.size(); source_idx++) {
 		for (idx_t destination_idx = 0; destination_idx < edge_table.destination_pk.size(); destination_idx++) {
-			if (Identifier(edge_table.source_pk[source_idx]) != Identifier(edge_table.destination_pk[destination_idx])) {
+			if (edge_table.source_pk[source_idx] != edge_table.destination_pk[destination_idx]) {
 				continue;
 			}
 			equality_conditions.push_back(DuckPGQSQL::Column(edge_table.source_fk[source_idx], edge_binding) +
@@ -311,15 +327,17 @@ shared_ptr<PropertyGraphTable> PGQMatchFunction::FindGraphTable(const string &la
 
 void PGQMatchFunction::CheckInheritance(const shared_ptr<PropertyGraphTable> &tableref, PathElement *element,
                                         vector<unique_ptr<ParsedExpression>> &conditions) {
-	if (StringUtil::CIEquals(tableref->main_label, element->label)) {
+	if (tableref->main_label == element->label) {
 		return;
 	}
 	if (tableref->discriminator.empty()) {
-		throw BinderException("Label %s is not a sublabel of %s", element->label, tableref->main_label);
+		throw BinderException("Label %s is not a sublabel of %s", element->label,
+		                      tableref->main_label.GetIdentifierName());
 	}
 	const auto itr = std::find(tableref->sub_labels.begin(), tableref->sub_labels.end(), element->label);
 	if (itr == tableref->sub_labels.end()) {
-		throw BinderException("Label %s is not a sublabel of %s", element->label, tableref->main_label);
+		throw BinderException("Label %s is not a sublabel of %s", element->label,
+		                      tableref->main_label.GetIdentifierName());
 	}
 
 	const auto idx_of_label = std::distance(tableref->sub_labels.begin(), itr);
@@ -329,22 +347,22 @@ void PGQMatchFunction::CheckInheritance(const shared_ptr<PropertyGraphTable> &ta
 	conditions.push_back(DuckPGQSQL::ParseExpression(condition.str()));
 }
 
-void PGQMatchFunction::CheckEdgeTableConstraints(const string &src_reference, const string &dst_reference,
+void PGQMatchFunction::CheckEdgeTableConstraints(const Identifier &src_reference, const Identifier &dst_reference,
                                                  const shared_ptr<PropertyGraphTable> &edge_table) {
 	if (src_reference != edge_table->source_reference) {
 		throw BinderException("Label %s is not registered as a source reference "
 		                      "for edge pattern of table %s",
-		                      src_reference, edge_table->table_name);
+		                      src_reference.GetIdentifierName(), edge_table->table_name.GetIdentifierName());
 	}
 	if (dst_reference != edge_table->destination_reference) {
 		throw BinderException("Label %s is not registered as a destination "
 		                      "reference for edge pattern of table %s",
-		                      src_reference, edge_table->table_name);
+		                      dst_reference.GetIdentifierName(), edge_table->table_name.GetIdentifierName());
 	}
 }
 
-unique_ptr<ParsedExpression> PGQMatchFunction::CreateMatchJoinExpression(vector<string> vertex_keys,
-                                                                         vector<string> edge_keys,
+unique_ptr<ParsedExpression> PGQMatchFunction::CreateMatchJoinExpression(vector<Identifier> vertex_keys,
+                                                                         vector<Identifier> edge_keys,
                                                                          const string &vertex_alias,
                                                                          const string &edge_alias) {
 	vector<unique_ptr<ParsedExpression>> conditions;
@@ -425,8 +443,8 @@ void PGQMatchFunction::EdgeTypeAny(const shared_ptr<PropertyGraphTable> &edge_ta
 	conditions.push_back(std::move(combined_left_expr));
 }
 
-void PGQMatchFunction::EdgeTypeLeft(const shared_ptr<PropertyGraphTable> &edge_table, const string &next_table_name,
-                                    const string &prev_table_name, const string &edge_binding,
+void PGQMatchFunction::EdgeTypeLeft(const shared_ptr<PropertyGraphTable> &edge_table, const Identifier &next_table_name,
+                                    const Identifier &prev_table_name, const string &edge_binding,
                                     const string &prev_binding, const string &next_binding,
                                     vector<unique_ptr<ParsedExpression>> &conditions) {
 	CheckEdgeTableConstraints(next_table_name, prev_table_name, edge_table);
@@ -436,9 +454,9 @@ void PGQMatchFunction::EdgeTypeLeft(const shared_ptr<PropertyGraphTable> &edge_t
 	    CreateMatchJoinExpression(edge_table->destination_pk, edge_table->destination_fk, prev_binding, edge_binding));
 }
 
-void PGQMatchFunction::EdgeTypeRight(const shared_ptr<PropertyGraphTable> &edge_table, const string &next_table_name,
-                                     const string &prev_table_name, const string &edge_binding,
-                                     const string &prev_binding, const string &next_binding,
+void PGQMatchFunction::EdgeTypeRight(const shared_ptr<PropertyGraphTable> &edge_table,
+                                     const Identifier &next_table_name, const Identifier &prev_table_name,
+                                     const string &edge_binding, const string &prev_binding, const string &next_binding,
                                      vector<unique_ptr<ParsedExpression>> &conditions) {
 	CheckEdgeTableConstraints(prev_table_name, next_table_name, edge_table);
 	conditions.push_back(
@@ -511,10 +529,10 @@ PGQMatchFunction::GenerateShortestPathCTE(CreatePropertyGraphInfo &pg_table, Sub
 	query << "SELECT shortestpath(0, ("
 	      << DuckPGQSQLCountTable(*edge_table->source_pg_table, previous_vertex_element->variable_binding,
 	                              edge_table->source_pk[0])
-	      << "), " << DuckPGQSQL::Column("rowid", previous_vertex_element->variable_binding) << ", "
-	      << DuckPGQSQL::Column("rowid", next_vertex_element->variable_binding) << ") AS path, "
-	      << DuckPGQSQL::Column("rowid", previous_vertex_element->variable_binding) << " AS src_rowid, "
-	      << DuckPGQSQL::Column("rowid", next_vertex_element->variable_binding) << " AS dst_rowid FROM "
+	      << "), " << DuckPGQSQL::Column(string("rowid"), previous_vertex_element->variable_binding) << ", "
+	      << DuckPGQSQL::Column(string("rowid"), next_vertex_element->variable_binding) << ") AS path, "
+	      << DuckPGQSQL::Column(string("rowid"), previous_vertex_element->variable_binding) << " AS src_rowid, "
+	      << DuckPGQSQL::Column(string("rowid"), next_vertex_element->variable_binding) << " AS dst_rowid FROM "
 	      << DuckPGQSQL::TableRef(*edge_table->source_pg_table, previous_vertex_element->variable_binding)
 	      << " CROSS JOIN "
 	      << DuckPGQSQL::TableRef(*edge_table->destination_pg_table, next_vertex_element->variable_binding)
@@ -571,15 +589,14 @@ unique_ptr<ParsedExpression> PGQMatchFunction::CreatePathFindingFunction(
 				if (next_vertex_subpath) {
 					path_finding_conditions.push_back(std::move(next_vertex_subpath->where_clause));
 				}
-				if (final_select_node->cte_map.map.find(PGQIdentifier("cte1")) ==
-				    final_select_node->cte_map.map.end()) {
+				if (final_select_node->cte_map.map.find(Identifier("cte1")) == final_select_node->cte_map.map.end()) {
 					edge_element = reinterpret_cast<PathElement *>(edge_subpath->path_list[0].get());
 					if (edge_element->match_type == PGQMatchType::MATCH_EDGE_RIGHT) {
-						final_select_node->cte_map.map[PGQIdentifier("cte1")] = CreateDirectedCSRCTE(
+						final_select_node->cte_map.map[Identifier("cte1")] = CreateDirectedCSRCTE(
 						    FindGraphTable(edge_element->label, pg_table), previous_vertex_element->variable_binding,
 						    edge_element->variable_binding, next_vertex_element->variable_binding);
 					} else if (edge_element->match_type == PGQMatchType::MATCH_EDGE_ANY) {
-						final_select_node->cte_map.map[PGQIdentifier("cte1")] =
+						final_select_node->cte_map.map[Identifier("cte1")] =
 						    CreateUndirectedCSRCTE(FindGraphTable(edge_element->label, pg_table), final_select_node);
 					} else {
 						throw NotImplementedException("Cannot do shortest path for edge type %s",
@@ -597,13 +614,13 @@ unique_ptr<ParsedExpression> PGQMatchFunction::CreatePathFindingFunction(
 					                   DuckPGQSQL::ParseFromTableRef(shortest_path_cte_name));
 
 					conditions.push_back(make_uniq<ComparisonExpression>(
-					    ExpressionType::COMPARE_EQUAL, PGQColumnRef("src_rowid", shortest_path_cte_name),
-					    PGQColumnRef("rowid", previous_vertex_element->variable_binding)));
+					    ExpressionType::COMPARE_EQUAL, PGQColumnRef(string("src_rowid"), shortest_path_cte_name),
+					    PGQColumnRef(string("rowid"), previous_vertex_element->variable_binding)));
 					conditions.push_back(make_uniq<ComparisonExpression>(
-					    ExpressionType::COMPARE_EQUAL, PGQColumnRef("dst_rowid", shortest_path_cte_name),
-					    PGQColumnRef("rowid", next_vertex_element->variable_binding)));
+					    ExpressionType::COMPARE_EQUAL, PGQColumnRef(string("dst_rowid"), shortest_path_cte_name),
+					    PGQColumnRef(string("rowid"), next_vertex_element->variable_binding)));
 				}
-				auto shortest_path_ref = PGQColumnRef("path", shortest_path_cte_name);
+				auto shortest_path_ref = PGQColumnRef(string("path"), shortest_path_cte_name);
 				if (!final_list) {
 					final_list = std::move(shortest_path_ref);
 				} else {
@@ -629,9 +646,9 @@ unique_ptr<ParsedExpression> PGQMatchFunction::CreatePathFindingFunction(
 			}
 			edge_element = GetPathElement(edge_subpath->path_list[0]);
 		}
-		auto previous_rowid = PGQColumnRef("rowid", previous_vertex_element->variable_binding);
-		auto edge_rowid = PGQColumnRef("rowid", edge_element->variable_binding);
-		auto next_rowid = PGQColumnRef("rowid", next_vertex_element->variable_binding);
+		auto previous_rowid = PGQColumnRef(string("rowid"), previous_vertex_element->variable_binding);
+		auto edge_rowid = PGQColumnRef(string("rowid"), edge_element->variable_binding);
+		auto next_rowid = PGQColumnRef(string("rowid"), next_vertex_element->variable_binding);
 		auto starting_list_children = vector<unique_ptr<ParsedExpression>>();
 
 		if (!final_list) {
@@ -692,10 +709,10 @@ unique_ptr<ParsedExpression>
 PGQMatchFunction::AddPathQuantifierCondition(const string &prev_binding, const string &next_binding,
                                              const shared_ptr<PropertyGraphTable> &edge_table, const SubPath *subpath) {
 	std::ostringstream expression;
-	expression << "add(" << DuckPGQSQL::Column("temp", "__x") << ", iterativelength(0, ("
+	expression << "add(" << DuckPGQSQL::Column(string("temp"), string("__x")) << ", iterativelength(0, ("
 	           << DuckPGQSQLCountTable(*edge_table->source_pg_table, prev_binding, edge_table->source_pk[0]) << "), "
-	           << DuckPGQSQL::Column("rowid", prev_binding) << ", " << DuckPGQSQL::Column("rowid", next_binding)
-	           << "))";
+	           << DuckPGQSQL::Column(string("rowid"), prev_binding) << ", "
+	           << DuckPGQSQL::Column(string("rowid"), next_binding) << "))";
 	if (subpath->upper == NumericLimits<int64_t>::Maximum()) {
 		expression << " >= " << subpath->lower;
 		return DuckPGQSQL::ParseExpression(expression.str());
@@ -1075,7 +1092,7 @@ unique_ptr<TableRef> PGQMatchFunction::MatchBindReplace(ClientContext &context, 
 				if (named_subpaths.count(column_names[0].GetIdentifierName()) && column_names.size() == 1) {
 					auto path_name = column_names[0].GetIdentifierName();
 					final_column_list.emplace_back(DuckPGQSQL::ParseExpression(
-					    "len(" + DuckPGQSQL::Column("path", path_name) + ") // 2", "path_length_" + path_name,
+					    "len(" + DuckPGQSQL::Column(string("path"), path_name) + ") // 2", "path_length_" + path_name,
 					    "DuckPGQ MATCH path_length projection"));
 				}
 			} else {

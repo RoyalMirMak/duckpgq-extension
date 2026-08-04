@@ -28,20 +28,20 @@ public:
 	//! Specify both the column and table name with alias
 	PropertyGraphTable(string table_name, string table_alias, vector<string> column_name, const vector<string> &label,
 	                   string catalog_name = "", string schema = DEFAULT_SCHEMA);
-	string table_name;
-	string table_name_alias;
+	Identifier table_name;
+	Identifier table_name_alias;
 
 	//! The stack of names in order of which they appear (column_names[0], column_names[1], column_names[2], ...)
-	vector<string> column_names;
-	vector<string> column_aliases;
+	vector<Identifier> column_names;
+	vector<Identifier> column_aliases;
 
-	vector<string> except_columns;
+	vector<Identifier> except_columns;
 
 	vector<Identifier> sub_labels;
-	string main_label;
+	Identifier main_label;
 
-	string catalog_name;
-	string schema_name;
+	Identifier catalog_name;
+	Identifier schema_name;
 
 	//! Associated with the PROPERTIES keyword not mentioned in the creation of table, equalling SELECT * in some sense
 	bool all_columns = false;
@@ -51,25 +51,25 @@ public:
 
 	bool is_vertex_table = false;
 
-	string discriminator;
+	Identifier discriminator;
 
-	vector<string> source_fk;
+	vector<Identifier> source_fk;
 
-	vector<string> source_pk;
+	vector<Identifier> source_pk;
 
-	string source_catalog;
-	string source_schema;
-	string source_reference;
+	Identifier source_catalog;
+	Identifier source_schema;
+	Identifier source_reference;
 
 	shared_ptr<PropertyGraphTable> source_pg_table;
 
-	vector<string> destination_fk;
+	vector<Identifier> destination_fk;
 
-	vector<string> destination_pk;
+	vector<Identifier> destination_pk;
 
-	string destination_catalog;
-	string destination_schema;
-	string destination_reference;
+	Identifier destination_catalog;
+	Identifier destination_schema;
+	Identifier destination_reference;
 
 	shared_ptr<PropertyGraphTable> destination_pg_table;
 
@@ -97,11 +97,11 @@ public:
 
 	unique_ptr<BaseTableRef> CreateBaseTableRef(const string &alias = "") const {
 		auto base_table_ref = make_uniq<BaseTableRef>();
-		base_table_ref->SetQualifiedName(Identifier(catalog_name), Identifier(schema_name), Identifier(table_name));
+		base_table_ref->SetQualifiedName(catalog_name, schema_name, table_name);
 		base_table_ref->alias = Identifier(alias.empty() ? "" : alias);
 		return base_table_ref;
 	}
 
-	bool IsSourceTable(const string &table_name);
+	bool IsSourceTable(const Identifier &table_name);
 };
 } // namespace duckdb

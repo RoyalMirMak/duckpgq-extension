@@ -50,13 +50,14 @@ public:
 	                                            const case_insensitive_set_t &v_table_names);
 
 	static void ValidatePrimaryKeyInTable(ClientContext &context, shared_ptr<PropertyGraphTable> &pg_table,
-	                                      const vector<string> &pk_columns);
+	                                      const vector<Identifier> &pk_columns);
 
-	static void ValidateKeys(shared_ptr<PropertyGraphTable> &edge_table, const string &reference,
-	                         const string &key_type, vector<string> &pk_columns, vector<string> &fk_columns,
+	static void ValidateKeys(shared_ptr<PropertyGraphTable> &edge_table, const Identifier &reference,
+	                         const string &key_type, vector<Identifier> &pk_columns, vector<Identifier> &fk_columns,
 	                         const vector<unique_ptr<Constraint>> &table_constraints);
 
-	static void ValidateForeignKeyColumns(shared_ptr<PropertyGraphTable> &edge_table, const vector<string> &fk_columns,
+	static void ValidateForeignKeyColumns(shared_ptr<PropertyGraphTable> &edge_table,
+	                                      const vector<Identifier> &fk_columns,
 	                                      optional_ptr<TableCatalogEntry> &table);
 
 	static unique_ptr<GlobalTableFunctionState> CreatePropertyGraphInit(ClientContext &context,

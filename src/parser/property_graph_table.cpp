@@ -8,7 +8,7 @@ PropertyGraphTable::PropertyGraphTable() = default;
 
 PropertyGraphTable::PropertyGraphTable(string table_name_p, vector<string> column_names_p,
                                        const vector<string> &labels_p, string catalog_p, string schema_p)
-    : table_name(std::move(table_name_p)), column_names(std::move(column_names_p)),
+    : table_name(std::move(table_name_p)), column_names(StringsToIdentifiers(column_names_p)),
       sub_labels(StringsToIdentifiers(labels_p)), catalog_name(std::move(catalog_p)), schema_name(std::move(schema_p)) {
 #ifdef DEBUG
 	for (auto &col_name : column_names) {
@@ -24,7 +24,7 @@ PropertyGraphTable::PropertyGraphTable(string table_name_p, vector<string> colum
 PropertyGraphTable::PropertyGraphTable(string table_name_p, string table_name_alias_p, vector<string> column_names_p,
                                        const vector<string> &labels_p, string catalog_p, string schema_p)
     : table_name(std::move(table_name_p)), table_name_alias(std::move(table_name_alias_p)),
-      column_names(std::move(column_names_p)), sub_labels(StringsToIdentifiers(labels_p)),
+      column_names(StringsToIdentifiers(column_names_p)), sub_labels(StringsToIdentifiers(labels_p)),
       catalog_name(std::move(catalog_p)), schema_name(std::move(schema_p)) {
 #ifdef DEBUG
 	for (auto &col_name : column_names) {
@@ -237,9 +237,7 @@ bool PropertyGraphTable::Equals(const PropertyGraphTable *other_p) const {
 }
 
 bool PropertyGraphTable::SameTableIdentity(const PropertyGraphTable &other) const {
-	return Identifier(catalog_name) == Identifier(other.catalog_name) &&
-	       Identifier(schema_name) == Identifier(other.schema_name) &&
-	       Identifier(table_name) == Identifier(other.table_name);
+	return catalog_name == other.catalog_name && schema_name == other.schema_name && table_name == other.table_name;
 }
 
 void PropertyGraphTable::Serialize(Serializer &serializer) const {
@@ -313,8 +311,8 @@ shared_ptr<PropertyGraphTable> PropertyGraphTable::Deserialize(Deserializer &des
 	return pg_table;
 }
 
-bool PropertyGraphTable::IsSourceTable(const string &table_name) {
-	return StringUtil::Lower(this->source_reference) == StringUtil::Lower(table_name);
+bool PropertyGraphTable::IsSourceTable(const Identifier &table_name) {
+	return source_reference == table_name;
 }
 
 shared_ptr<PropertyGraphTable> PropertyGraphTable::Copy() const {
