@@ -76,6 +76,7 @@ public:
 public:
 	string ToString() const;
 	bool Equals(const PropertyGraphTable *other_p) const;
+	bool SameTableIdentity(const PropertyGraphTable &other) const;
 
 	shared_ptr<PropertyGraphTable> Copy() const;
 

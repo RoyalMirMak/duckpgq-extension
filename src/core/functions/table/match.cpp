@@ -262,6 +262,40 @@ GetColRefExprFromPg(const case_insensitive_map_t<shared_ptr<PropertyGraphTable>>
 	return registered_col_names;
 }
 
+bool IsSameGraphVertexReference(const PropertyGraphTable &edge_table) {
+	if (edge_table.source_pg_table || edge_table.destination_pg_table) {
+		return edge_table.source_pg_table && edge_table.destination_pg_table &&
+		       edge_table.source_pg_table->SameTableIdentity(*edge_table.destination_pg_table);
+	}
+	return Identifier(edge_table.source_catalog) == Identifier(edge_table.destination_catalog) &&
+	       Identifier(edge_table.source_schema) == Identifier(edge_table.destination_schema) &&
+	       Identifier(edge_table.source_reference) == Identifier(edge_table.destination_reference);
+}
+
+string CreateReverseSelfLoopFilter(const PropertyGraphTable &edge_table, const string &edge_binding) {
+	if (!IsSameGraphVertexReference(edge_table)) {
+		return "";
+	}
+
+	vector<string> equality_conditions;
+	for (idx_t source_idx = 0; source_idx < edge_table.source_pk.size(); source_idx++) {
+		for (idx_t destination_idx = 0; destination_idx < edge_table.destination_pk.size(); destination_idx++) {
+			if (Identifier(edge_table.source_pk[source_idx]) != Identifier(edge_table.destination_pk[destination_idx])) {
+				continue;
+			}
+			equality_conditions.push_back(DuckPGQSQL::Column(edge_table.source_fk[source_idx], edge_binding) +
+			                              " IS NOT DISTINCT FROM " +
+			                              DuckPGQSQL::Column(edge_table.destination_fk[destination_idx], edge_binding));
+			break;
+		}
+	}
+
+	if (equality_conditions.size() != edge_table.source_pk.size()) {
+		return "";
+	}
+	return " WHERE NOT (" + StringUtil::Join(equality_conditions, " AND ") + ")";
+}
+
 } // namespace
 
 shared_ptr<PropertyGraphTable> PGQMatchFunction::FindGraphTable(const string &label,
@@ -376,7 +410,7 @@ void PGQMatchFunction::EdgeTypeAny(const shared_ptr<PropertyGraphTable> &edge_ta
 	      << DuckPGQSQL::Identifier(edge_table->source_fk[0]) << ", "
 	      << DuckPGQSQL::Column(edge_table->source_fk[0], edge_binding) << " AS "
 	      << DuckPGQSQL::Identifier(edge_table->destination_fk[0]) << ", * FROM "
-	      << DuckPGQSQL::TableRef(*edge_table, edge_binding);
+	      << DuckPGQSQL::TableRef(*edge_table, edge_binding) << CreateReverseSelfLoopFilter(*edge_table, edge_binding);
 	PGQAppendCrossJoin(from_clause, DuckPGQSQL::ParseSubqueryRef(query.str(), edge_binding));
 	// (a) src.key = edge.src
 	auto src_left_expr =

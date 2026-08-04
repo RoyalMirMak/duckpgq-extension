@@ -66,3 +66,33 @@ Daniel	Peter	12
 Daniel	Peter	13
 Daniel	Tavneet	10
 
+statement ok
+CREATE TABLE Person(id BIGINT NOT NULL);
+
+statement ok
+CREATE TABLE Person_knows_Person(Person1Id BIGINT NOT NULL, Person2Id BIGINT NOT NULL);
+
+statement ok
+INSERT INTO Person VALUES (1);
+
+statement ok
+INSERT INTO Person_knows_Person VALUES (1, 1);
+
+statement ok
+CREATE PROPERTY GRAPH self_loop_pg
+VERTEX TABLES (Person)
+EDGE TABLES (
+    Person_knows_Person SOURCE KEY (Person1Id) REFERENCES Person (id)
+                        DESTINATION KEY (Person2Id) REFERENCES Person (id)
+                        LABEL Knows
+);
+
+query II
+SELECT *
+FROM GRAPH_TABLE (
+    self_loop_pg
+    MATCH (person1:Person)-[k:Knows]-(person1:Person)
+    COLUMNS (k.Person1Id, k.Person2Id)
+);
+----
+1	1

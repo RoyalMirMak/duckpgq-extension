@@ -236,6 +236,12 @@ bool PropertyGraphTable::Equals(const PropertyGraphTable *other_p) const {
 	return true;
 }
 
+bool PropertyGraphTable::SameTableIdentity(const PropertyGraphTable &other) const {
+	return Identifier(catalog_name) == Identifier(other.catalog_name) &&
+	       Identifier(schema_name) == Identifier(other.schema_name) &&
+	       Identifier(table_name) == Identifier(other.table_name);
+}
+
 void PropertyGraphTable::Serialize(Serializer &serializer) const {
 	serializer.WriteProperty(100, "catalog_name", catalog_name);
 
