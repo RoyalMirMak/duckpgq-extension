@@ -23,11 +23,11 @@ public:
 	//! Used for Copy
 	PropertyGraphTable();
 	//! Specify both the column and table name
-	PropertyGraphTable(string table_name, vector<string> column_name, const vector<string> &label,
+	PropertyGraphTable(string table_name, const vector<string> &column_name, const vector<string> &label,
 	                   string catalog_name = "", string schema = DEFAULT_SCHEMA);
 	//! Specify both the column and table name with alias
-	PropertyGraphTable(string table_name, string table_alias, vector<string> column_name, const vector<string> &label,
-	                   string catalog_name = "", string schema = DEFAULT_SCHEMA);
+	PropertyGraphTable(string table_name, string table_alias, const vector<string> &column_name,
+	                   const vector<string> &label, string catalog_name = "", string schema = DEFAULT_SCHEMA);
 	Identifier table_name;
 	Identifier table_name_alias;
 
