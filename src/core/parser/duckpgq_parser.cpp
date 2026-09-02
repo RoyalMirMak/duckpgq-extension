@@ -106,13 +106,16 @@ ParserOverrideResult duckpgq_parser_override(ParserExtensionInfo *info, const st
 
 		if (!statements.empty()) {
 			for (idx_t i = 0; i + 1 < statements.size(); i++) {
-				statements[i]->stmt_length = statements[i + 1]->stmt_location - statements[i]->stmt_location;
+				auto start = statements[i]->stmt_location.Start();
+				auto end = statements[i + 1]->stmt_location.Start();
+				statements[i]->stmt_location = QueryLocation(start, end - start);
 			}
-			statements.back()->stmt_length = normalized_query.size() - statements.back()->stmt_location;
+			auto last_start = statements.back()->stmt_location.Start();
+			statements.back()->stmt_location = QueryLocation(last_start, normalized_query.size() - last_start);
 			for (auto &statement : statements) {
-				statement->query = normalized_query.substr(statement->stmt_location, statement->stmt_length);
-				statement->stmt_location = 0;
-				statement->stmt_length = statement->query.size();
+				statement->query = normalized_query.substr(statement->stmt_location.Start(),
+				                                           statement->stmt_location.length);
+				statement->stmt_location = QueryLocation(0, statement->query.size());
 				if (statement->type == StatementType::CREATE_STATEMENT) {
 					auto &create = statement->Cast<CreateStatement>();
 					create.info->sql = statement->query;

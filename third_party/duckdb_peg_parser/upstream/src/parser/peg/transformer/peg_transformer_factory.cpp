@@ -74,12 +74,11 @@ static unique_ptr<SQLStatement> ExtractAndTransformStatement(PEGTransformer &tra
 
 	// Calculate location and length cleanly
 	if (stmt_pr.offset.IsValid()) {
-		stmt->stmt_location = stmt_pr.offset.GetIndex();
-
+		idx_t start_index = stmt_pr.offset.GetIndex();
 		idx_t end_index =
 		    terminator_offset.IsValid() ? terminator_offset.GetIndex() : (tokens.back().offset + tokens.back().length);
 
-		stmt->stmt_length = end_index - stmt->stmt_location;
+		stmt->stmt_location = QueryLocation(start_index, end_index - start_index);
 	}
 
 	return stmt;
@@ -114,7 +113,7 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformTopLevelStatement(vecto
 		}
 		auto &error_token = tokens[error_token_idx];
 		auto error_message = "syntax error at or near \"" + error_token.text + "\"";
-		throw ParserException::SyntaxError(token_stream, error_message, error_token.offset);
+		throw ParserException::SyntaxError(token_stream, error_message, QueryLocation(error_token.offset, error_token.length));
 	}
 
 	// Advance the caller's cursor past the consumed tokens.
@@ -377,11 +376,13 @@ bool PEGTransformerFactory::ConstructConstantFromExpression(const ParsedExpressi
 			return false;
 		}
 
-		string error_message;
-		if (!dummy_value.DefaultTryCastAs(cast_type, value, &error_message)) {
+		auto error_message = make_uniq<string>();
+		auto cast_result = dummy_value.DefaultTryCastAs(cast_type, error_message.get());
+		if (!cast_result) {
 			throw ConversionException("Unable to cast %s to %s", dummy_value.ToString(),
 			                          EnumUtil::ToString(cast_type.id()));
 		}
+		value = std::move(*cast_result);
 		return true;
 	}
 	default:

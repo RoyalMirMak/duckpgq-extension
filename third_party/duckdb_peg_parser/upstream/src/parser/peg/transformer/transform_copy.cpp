@@ -23,7 +23,7 @@ void SetCopyOptions(unique_ptr<CopyInfo> &info, vector<GenericCopyOption> &optio
 		if (option.name == "PARTITION_BY" || option.name == "FORCE_QUOTE" || option.name == "FORCE_NOT_NULL" ||
 		    option.name == "FORCE_NULL") {
 			if (option.expression) {
-				info->parsed_options[option.name.GetIdentifierName()] = std::move(option.expression);
+				info->parsed_options[option.name] = std::move(option.expression);
 			} else {
 				if (option.children.empty()) {
 					throw BinderException("\"%s\" expects a column list or * as parameter", option.name);
@@ -33,31 +33,31 @@ void SetCopyOptions(unique_ptr<CopyInfo> &info, vector<GenericCopyOption> &optio
 					func_children.push_back(make_uniq<ColumnRefExpression>(Identifier(partition.GetValue<string>())));
 				}
 				auto row_func = make_uniq<FunctionExpression>("row", std::move(func_children));
-				info->parsed_options[option.name.GetIdentifierName()] = std::move(row_func);
+				info->parsed_options[option.name] = std::move(row_func);
 			}
 		} else if (option.name == "HEADER" || option.name == "ESCAPE") {
 			if (option.children.empty()) {
-				info->parsed_options[option.name.GetIdentifierName()] = nullptr;
+				info->parsed_options[option.name] = nullptr;
 			} else {
-				info->parsed_options[option.name.GetIdentifierName()] =
+				info->parsed_options[option.name] =
 				    make_uniq<ConstantExpression>(option.children[0]);
 			}
 		} else if (option.name == "NULL" || option.name == "NULLSTR") {
 			if (option.children.empty()) {
-				info->parsed_options[option.name.GetIdentifierName()] = std::move(option.expression);
+				info->parsed_options[option.name] = std::move(option.expression);
 			} else {
-				info->parsed_options[option.name.GetIdentifierName()] =
+				info->parsed_options[option.name] =
 				    make_uniq<ConstantExpression>(option.children[0]);
 			}
 		} else {
 			if (option.expression) {
-				info->parsed_options[option.name.GetIdentifierName()] = std::move(option.expression);
+				info->parsed_options[option.name] = std::move(option.expression);
 			} else {
-				info->options[option.name.GetIdentifierName()] = option.children;
+				info->options[option.name] = option.children;
 			}
 		}
 	}
-	auto format_option = info->options.find("format");
+	auto format_option = info->options.find(Identifier("format"));
 	if (format_option != info->options.end()) {
 		if (format_option->second.empty()) {
 			throw ParserException("Unsupported parameter type for FORMAT: expected e.g. FORMAT 'csv', 'parquet'");

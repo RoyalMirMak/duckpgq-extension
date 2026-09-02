@@ -42,11 +42,11 @@ void DuckPGQState::RetrievePropertyGraphs(const shared_ptr<Connection> &connecti
 }
 
 void DuckPGQState::ProcessPropertyGraphs(unique_ptr<MaterializedQueryResult> &property_graphs, bool is_vertex) {
-	if (!property_graphs || property_graphs->type != QueryResultType::MATERIALIZED_RESULT) {
-		throw std::runtime_error("Failed to fetch property graphs or invalid result type.");
+	if (!property_graphs) {
+		throw std::runtime_error("Failed to fetch property graphs.");
 	}
 
-	auto &materialized_result = property_graphs->Cast<MaterializedQueryResult>();
+	auto &materialized_result = *property_graphs;
 	auto row_count = materialized_result.RowCount();
 	if (row_count == 0) {
 		return; // No results
