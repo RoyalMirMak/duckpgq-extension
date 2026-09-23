@@ -49,7 +49,7 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformShowAllTables(PEGTransform
 	auto result = make_uniq<ShowRef>();
 	// Legacy reasons, see bind_showref.cpp
 	result->SetTableName("__show_tables_expanded");
-	result->show_type = ShowType::SHOW_UNQUALIFIED;
+	result->show_type = ShowType::SHOW_SPECIAL;
 	auto select_node = make_uniq<SelectNode>();
 	select_node->select_list.push_back(make_uniq<StarExpression>());
 	select_node->from_table = std::move(result);
@@ -57,8 +57,8 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformShowAllTables(PEGTransform
 }
 
 unique_ptr<QueryNode> PEGTransformerFactory::TransformDescribePropertyGraph(PEGTransformer &transformer,
-                                                                           const ShowType &describe_rule,
-                                                                           const QualifiedName &qualified_name) {
+                                                                            const ShowType &describe_rule,
+                                                                            const QualifiedName &qualified_name) {
 	auto showref = make_uniq<ShowRef>();
 	showref->show_type = ShowType::DESCRIBE;
 	showref->SetTableName(qualified_name.Name());
@@ -101,7 +101,7 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformShowQualifiedName(PEGTrans
 				if (table_name == "databases" || table_name == "tables" || table_name == "schemas" ||
 				    table_name == "variables") {
 					showref->SetTableName(Identifier("\"" + table_name + "\""));
-					showref->show_type = ShowType::SHOW_UNQUALIFIED;
+					showref->show_type = ShowType::SHOW_SPECIAL;
 				}
 			}
 		}
@@ -125,7 +125,7 @@ unique_ptr<QueryNode> PEGTransformerFactory::TransformShowQualifiedName(PEGTrans
 			throw ParserException("Expected table name with SUMMARIZE");
 		}
 		showref->SetTableName("__show_tables_expanded");
-		showref->show_type = ShowType::SHOW_UNQUALIFIED;
+		showref->show_type = ShowType::SHOW_SPECIAL;
 	}
 
 	auto select_node = make_uniq<SelectNode>();

@@ -93,8 +93,8 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformTopLevelStatement(vecto
 	vector<MatcherSuggestion> suggestions;
 	ParseResultAllocator parse_result_allocator;
 	idx_t max_token_index = token_cursor;
-	MatchState state(tokens, suggestions, parse_result_allocator, max_token_index, options.preserve_identifier_case,
-	                 token_cursor);
+	MatchState state(tokens, suggestions, parse_result_allocator, max_token_index,
+	                 options.identifier_case_mode == IdentifierCaseMode::PRESERVE_CASE, token_cursor);
 	auto match_result = root_matcher.MatchParseResult(state);
 	if (match_result == nullptr) {
 		// syntax error — surface as a parser exception in the same shape as Transform()
@@ -113,7 +113,8 @@ unique_ptr<SQLStatement> PEGTransformerFactory::TransformTopLevelStatement(vecto
 		}
 		auto &error_token = tokens[error_token_idx];
 		auto error_message = "syntax error at or near \"" + error_token.text + "\"";
-		throw ParserException::SyntaxError(token_stream, error_message, QueryLocation(error_token.offset, error_token.length));
+		throw ParserException::SyntaxError(token_stream, error_message,
+		                                   QueryLocation(error_token.offset, error_token.length));
 	}
 
 	// Advance the caller's cursor past the consumed tokens.
@@ -219,7 +220,7 @@ PEGTransformerFactory::PEGTransformerFactory() {
 
 const case_insensitive_map_t<PEGTransformer::AnyTransformFunction> &
 PEGTransformerFactory::GetTransformFunctions(ParserOptions &options) {
-	if (options.debug_transformer_trampoline_style) {
+	if (options.debug_heap_based_parser) {
 		return trampoline_transform_functions;
 	}
 	return sql_transform_functions;
