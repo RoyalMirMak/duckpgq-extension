@@ -8,5 +8,3 @@ testext
 __pycache__/
 .Rhistory
 .venv
-.cache/
-.nessy/
